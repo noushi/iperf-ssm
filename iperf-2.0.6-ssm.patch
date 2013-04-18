@@ -1,0 +1,523 @@
+diff -Naur iperf-2.0.5/ChangeLog iperf-2.0.5-ssm/ChangeLog
+--- iperf-2.0.5/ChangeLog	2010-07-09 05:28:37.000000000 +0100
++++ iperf-2.0.5-ssm/ChangeLog	2012-05-03 13:41:04.485964388 +0000
+@@ -1,3 +1,11 @@
++2012-05-03 Reda Noushi <reda_noushi@yahoo.com>
++
++* added Source Specific Multicast iperf support for IPV4:
++ . -O -X server options
++ . reporting
++ . configure.ac check
++* cleaned up all compiler warnings (unchecked return values for write, chdir)
++
+ 2010-07-08 Jon Dugan <jdugan@x1024.net>
+ 
+ * bumped default TCP send/recv buffer to 128K (this is not the kernel buffer
+diff -Naur iperf-2.0.5/compat/Thread.c iperf-2.0.5-ssm/compat/Thread.c
+--- iperf-2.0.5/compat/Thread.c	2010-03-30 23:08:24.000000000 +0000
++++ iperf-2.0.5-ssm/compat/Thread.c	2012-05-03 13:22:41.409526280 +0000
+@@ -381,7 +381,7 @@
+     Condition_Lock( thread_sNum_cond );
+     thread_sNum -= nonterminating_num;
+     if ( thread_sNum > 1 && nonterminating_num > 0 && interrupt != 0 ) {
+-        fprintf( stderr, wait_server_threads );
++        fprintf( stderr, "%s", wait_server_threads ); 
+     }
+     nonterminating_num = 0;
+     Condition_Signal( &thread_sNum_cond );
+diff -Naur iperf-2.0.5/configure.ac iperf-2.0.5-ssm/configure.ac
+--- iperf-2.0.5/configure.ac	2010-04-10 19:23:05.000000000 +0000
++++ iperf-2.0.5-ssm/configure.ac	2012-05-03 13:10:09.777799137 +0000
+@@ -178,6 +178,7 @@
+ if test "$ac_cv_multicast" != no; then
+   AC_CHECK_TYPES(struct ip_mreq,,,[#include "compat/headers_slim.h"])
+   AC_CHECK_DECLS(IP_ADD_MEMBERSHIP,,,[#include "compat/headers_slim.h"])
++  AC_CHECK_DECLS(MCAST_JOIN_SOURCE_GROUP,,,[#include "compat/headers_slim.h"])
+   AC_MSG_CHECKING(for multicast support)
+   ac_cv_multicast=no
+   if test "$ac_cv_have_decl_IP_ADD_MEMBERSHIP" = yes; then
+diff -Naur iperf-2.0.5/include/headers.h iperf-2.0.5-ssm/include/headers.h
+--- iperf-2.0.5/include/headers.h	2008-03-12 20:28:21.000000000 +0000
++++ iperf-2.0.5-ssm/include/headers.h	2012-05-03 13:47:31.891885433 +0000
+@@ -152,6 +152,8 @@
+         #include <pthread.h>
+     #endif // HAVE_POSIX_THREAD
+ 
++    #include <net/if.h> //provides if_nametoindex() 
++
+ /* used in Win32 for error checking,
+  * rather than checking rc < 0 as unix usually does */
+     #define SOCKET_ERROR   -1
+diff -Naur iperf-2.0.5/include/Listener.hpp iperf-2.0.5-ssm/include/Listener.hpp
+--- iperf-2.0.5/include/Listener.hpp	2007-08-29 21:57:27.000000000 +0000
++++ iperf-2.0.5-ssm/include/Listener.hpp	2012-04-24 00:51:15.635851041 +0000
+@@ -78,6 +78,8 @@
+ 
+     void McastJoin( );
+ 
++    void McastSource( );
++
+     void McastSetTTL( int val );
+ 
+     void Accept( thread_Settings *server );
+diff -Naur iperf-2.0.5/include/Locale.h iperf-2.0.5-ssm/include/Locale.h
+--- iperf-2.0.5/include/Locale.h	2010-03-30 22:57:17.000000000 +0000
++++ iperf-2.0.5-ssm/include/Locale.h	2012-05-02 20:39:30.276000283 +0000
+@@ -84,6 +84,10 @@
+ 
+ extern const char join_multicast[];
+ 
++extern const char join_source_multicast[];
++
++extern const char join_interface_multicast[];
++
+ extern const char client_datagram_size[];
+ 
+ extern const char server_datagram_size[];
+diff -Naur iperf-2.0.5/include/Reporter.h iperf-2.0.5-ssm/include/Reporter.h
+--- iperf-2.0.5/include/Reporter.h	2008-03-12 20:28:21.000000000 +0000
++++ iperf-2.0.5-ssm/include/Reporter.h	2012-05-03 10:23:28.433681890 +0000
+@@ -113,11 +113,14 @@
+     Socklen_t size_peer;
+     iperf_sockaddr local;
+     Socklen_t size_local;
++    iperf_sockaddr source;
+ } Connection_Info;
+ 
+ typedef struct ReporterData {
+     char*  mHost;                   // -c
+     char*  mLocalhost;              // -B
++    char*  mSource;                 // -O
++    char*  mInterface;              // -X
+     // int's
+     int type;
+     int cntError;
+diff -Naur iperf-2.0.5/include/Settings.hpp iperf-2.0.5-ssm/include/Settings.hpp
+--- iperf-2.0.5/include/Settings.hpp	2008-03-19 22:23:26.000000000 +0000
++++ iperf-2.0.5-ssm/include/Settings.hpp	2012-05-02 19:20:03.012360697 +0000
+@@ -111,6 +111,8 @@
+     char*  mFileName;               // -F
+     char*  mHost;                   // -c
+     char*  mLocalhost;              // -B
++    char*  mSource;                 // -O
++    char*  mInterface;              // -X
+     char*  mOutputFileName;         // -o
+     FILE*  Extractor_file;
+     ReportHeader*  reporthdr;
+@@ -168,7 +170,8 @@
+     iperf_sockaddr peer;
+     Socklen_t size_peer;
+     iperf_sockaddr local;
+-    Socklen_t size_local;
++    Socklen_t size_local;    
++    iperf_sockaddr source; // source specific multicast address
+     nthread_t mTID;
+     char* mCongestion;
+ #if defined( HAVE_WIN32_THREAD )
+@@ -210,6 +213,7 @@
+ #define FLAG_SINGLECLIENT   0x00100000
+ #define FLAG_SINGLEUDP      0x00200000
+ #define FLAG_CONGESTION     0x00400000
++#define FLAG_SOURCE_MCAST   0x00800000
+ 
+ #define isBuflenSet(settings)      ((settings->flags & FLAG_BUFLENSET) != 0)
+ #define isCompat(settings)         ((settings->flags & FLAG_COMPAT) != 0)
+@@ -226,6 +230,7 @@
+ #define isModeTime(settings)       ((settings->flags & FLAG_MODETIME) != 0)
+ #define isReport(settings)         ((settings->flags & FLAG_REPORTSETTINGS) != 0)
+ #define isMulticast(settings)      ((settings->flags & FLAG_MULTICAST) != 0)
++#define isSourceMulticast(settings)      ((settings->flags & FLAG_SOURCE_MCAST) != 0)
+ // Active Low for Reports
+ #define isSettingsReport(settings) ((settings->flags & FLAG_NOSETTREPORT) == 0)
+ #define isConnectionReport(settings)  ((settings->flags & FLAG_NOCONNREPORT) == 0)
+@@ -252,6 +257,7 @@
+ #define setModeTime(settings)      settings->flags |= FLAG_MODETIME
+ #define setReport(settings)        settings->flags |= FLAG_REPORTSETTINGS
+ #define setMulticast(settings)     settings->flags |= FLAG_MULTICAST
++#define setSourceMulticast(settings)     settings->flags |= FLAG_SOURCE_MCAST
+ #define setNoSettReport(settings)  settings->flags |= FLAG_NOSETTREPORT
+ #define setNoConnReport(settings)  settings->flags |= FLAG_NOCONNREPORT
+ #define setNoDataReport(settings)  settings->flags |= FLAG_NODATAREPORT
+@@ -276,6 +282,7 @@
+ #define unsetModeTime(settings)    settings->flags &= ~FLAG_MODETIME
+ #define unsetReport(settings)      settings->flags &= ~FLAG_REPORTSETTINGS
+ #define unsetMulticast(settings)   settings->flags &= ~FLAG_MULTICAST
++#define unsetSourceMulticast(settings)   settings->flags &= ~FLAG_SOURCE_MCAST
+ #define unsetNoSettReport(settings)   settings->flags &= ~FLAG_NOSETTREPORT
+ #define unsetNoConnReport(settings)   settings->flags &= ~FLAG_NOCONNREPORT
+ #define unsetNoDataReport(settings)   settings->flags &= ~FLAG_NODATAREPORT
+diff -Naur iperf-2.0.5/src/Client.cpp iperf-2.0.5-ssm/src/Client.cpp
+--- iperf-2.0.5/src/Client.cpp	2010-04-01 20:23:17.000000000 +0000
++++ iperf-2.0.5-ssm/src/Client.cpp	2012-05-03 13:38:53.485314780 +0000
+@@ -343,7 +343,8 @@
+         mBuf_UDP->tv_usec = htonl( reportstruct->packetTime.tv_usec ); 
+ 
+         if ( isMulticast( mSettings ) ) {
+-            write( mSettings->mSock, mBuf, mSettings->mBufLen ); 
++	  int rc=write( mSettings->mSock, mBuf, mSettings->mBufLen );
++	  WARN_errno( rc < 0, "write");
+         } else {
+             write_UDP_FIN( ); 
+         }
+@@ -437,7 +438,8 @@
+         count++; 
+ 
+         // write data 
+-        write( mSettings->mSock, mBuf, mSettings->mBufLen ); 
++        rc=write( mSettings->mSock, mBuf, mSettings->mBufLen );
++	WARN_errno( rc < 0, "write");
+ 
+         // wait until the socket is readable, or our timeout expires 
+         FD_ZERO( &readSet ); 
+diff -Naur iperf-2.0.5/src/Listener.cpp iperf-2.0.5-ssm/src/Listener.cpp
+--- iperf-2.0.5/src/Listener.cpp	2007-08-29 21:57:27.000000000 +0000
++++ iperf-2.0.5-ssm/src/Listener.cpp	2012-05-03 13:39:39.721544062 +0000
+@@ -80,6 +80,7 @@
+ #include "List.h"
+ #include "util.h" 
+ 
++
+ /* ------------------------------------------------------------------- 
+  * Stores local hostname and socket info. 
+  * ------------------------------------------------------------------- */ 
+@@ -345,7 +346,11 @@
+ #ifndef WIN32
+     // if multicast, join the group
+     if ( SockAddr_isMulticast( &mSettings->local ) ) {
++      if( isSourceMulticast( mSettings ) ) {
++	McastSource( );
++      } else {
+         McastJoin( );
++      }
+     }
+ #endif
+ } // end Listen
+@@ -387,6 +392,62 @@
+ // end McastJoin
+ 
+ /* -------------------------------------------------------------------
++ * Sets the source specific multicast address
++ * ------------------------------------------------------------------- */
++
++void Listener::McastSource( ) {
++#ifdef HAVE_MULTICAST
++    if ( !SockAddr_isIPv6( &mSettings->local ) ) {
++	struct group_source_req group_source_req;
++	struct sockaddr_in *group;
++	struct sockaddr_in *source;
++	char temp[100];
++	int iface;
++
++//	iface_str could be eth0, wlan0...
++	char *iface_str=mSettings->mInterface;
++
++	FAIL( iface_str == NULL, "source multicast join: interface setting", mSettings );
++
++	iface = if_nametoindex(iface_str);
++
++	group_source_req.gsr_interface = iface;
++
++//	fprintf(stderr, "setting multicast interface to %s , idx %d\n", iface_str, iface);
++
++	group=(struct sockaddr_in*)&group_source_req.gsr_group;
++	source=(struct sockaddr_in*)&group_source_req.gsr_source;
++	
++	SockAddr_getHostAddress(&mSettings->local, temp, 100);
++//	fprintf(stderr, "setting multicast group to %s\n", temp);
++	
++	group->sin_family = AF_INET;
++	inet_aton(temp,&group->sin_addr);
++	group->sin_port = 0;
++	
++	SockAddr_getHostAddress(&mSettings->source, temp, 100);
++//	fprintf(stderr, "setting multicast source to %s\n", temp);
++	
++	source->sin_family = AF_INET;
++	inet_aton(temp,&source->sin_addr);
++	source->sin_port = 0;
++	
++	int rc= setsockopt(mSettings->mSock ,SOL_IP,MCAST_JOIN_SOURCE_GROUP, &group_source_req,
++			   sizeof(group_source_req));
++	
++	FAIL_errno( rc == SOCKET_ERROR, "source multicast join", mSettings );	
++    }
++#ifdef HAVE_IPV6_MULTICAST
++      else {
++	
++        FAIL( 0 == 0, "source multicast join not yet implemented for IPv6", mSettings );
++    }
++#endif
++#endif
++}
++// end McastSource
++
++/* -------------------------------------------------------------------
+  * Sets the Multicast TTL for outgoing packets.
+  * ------------------------------------------------------------------- */
+ 
+@@ -702,7 +763,9 @@
+         exit(0); 
+     }
+ 
+-    chdir("."); 
++    int rc=chdir("."); 
++    WARN_errno( rc < 0, "chdir");
++
+     fprintf( stderr, "Running Iperf Server as a daemon\n"); 
+     fprintf( stderr, "The Iperf daemon process ID : %d\n",((int)getpid())); 
+     fflush(stderr); 
+diff -Naur iperf-2.0.5/src/Locale.c iperf-2.0.5-ssm/src/Locale.c
+--- iperf-2.0.5/src/Locale.c	2010-03-30 22:57:17.000000000 +0000
++++ iperf-2.0.5-ssm/src/Locale.c	2012-05-03 12:55:14.061357517 +0000
+@@ -93,7 +93,9 @@
+ Server specific:\n\
+   -s, --server             run in server mode\n\
+   -U, --single_udp         run in single threaded UDP mode\n\
+-  -D, --daemon             run the server as a daemon\n"
++  -D, --daemon             run the server as a daemon\n\
++  -O, --source    <address> specify source for Source Specific Multicast\n\
++  -X, --interface <interface> specify interface for Source Specific Multicast\n"
+ #ifdef WIN32
+ "  -R, --remove             remove service in win32\n"
+ #endif
+@@ -164,6 +166,12 @@
+ const char join_multicast[] =
+ "Joining multicast group  %s\n";
+ 
++const char join_source_multicast[] =
++"Accepting multicast group source  %s\n";
++
++const char join_interface_multicast[] = 
++"Joining multicast group on interface  %s\n";
++
+ const char client_datagram_size[] =
+ "Sending %d byte datagrams\n";
+ 
+diff -Naur iperf-2.0.5/src/ReportDefault.c iperf-2.0.5-ssm/src/ReportDefault.c
+--- iperf-2.0.5/src/ReportDefault.c	2010-03-30 22:57:17.000000000 +0000
++++ iperf-2.0.5-ssm/src/ReportDefault.c	2012-05-03 13:06:28.464701713 +0000
+@@ -78,7 +78,7 @@
+     if ( stats->mUDP != (char)kMode_Server ) {
+         // TCP Reporting
+         if( !header_printed ) {
+-            printf( report_bw_header);
++            printf( "%s", report_bw_header);
+             header_printed = 1;
+         }
+         printf( report_bw_format, stats->transferID, 
+@@ -87,7 +87,7 @@
+     } else {
+         // UDP Reporting
+         if( !header_printed ) {
+-            printf( report_bw_jitter_loss_header);
++            printf( "%s", report_bw_jitter_loss_header);
+             header_printed = 1;
+         }
+         printf( report_bw_jitter_loss_format, stats->transferID, 
+@@ -159,7 +159,7 @@
+                   (data->mThreadMode == kMode_Listener ? 0 : 1) );
+     win_requested = data->mTCPWin;
+ 
+-    printf( separator_line );
++    printf( "%s", separator_line );
+     if ( data->mThreadMode == kMode_Listener ) {
+         printf( server_port,
+                 (isUDP( data ) ? "UDP" : "TCP"), 
+@@ -171,10 +171,19 @@
+                 data->mPort );
+     }
+     if ( data->mLocalhost != NULL ) {
+-        printf( bind_address, data->mLocalhost );
+-        if ( SockAddr_isMulticast( &data->connection.local ) ) {
+-            printf( join_multicast, data->mLocalhost );
+-        }
++      printf( bind_address, data->mLocalhost );
++      if ( SockAddr_isMulticast( &data->connection.local ) ) {
++	printf( join_multicast, data->mLocalhost );
++      }
++
++      if ( data->mInterface != NULL ) {
++	printf( join_interface_multicast, data->mInterface );	
++      }
++
++      if ( data->mSource != NULL ) {
++	printf( join_source_multicast, data->mSource );
++      }
++      
+     }
+ 
+     if ( isUDP( data ) ) {
+@@ -198,7 +207,7 @@
+         printf( warn_window_requested, buffer );
+     }
+     printf( "\n" );
+-    printf( separator_line );
++    printf( "%s", separator_line );
+ }
+ 
+ /*
+@@ -286,7 +295,7 @@
+         } else if ( checkMSS_MTU( inMSS, 576 ) ) {
+             net = "minimum";
+             mtu = 576;
+-            printf( warn_no_pathmtu );
++            printf( "%s", warn_no_pathmtu );
+         } else {
+             mtu = inMSS + 40;
+             net = "unknown interface";
+diff -Naur iperf-2.0.5/src/Reporter.c iperf-2.0.5-ssm/src/Reporter.c
+--- iperf-2.0.5/src/Reporter.c	2010-03-30 23:08:24.000000000 +0000
++++ iperf-2.0.5-ssm/src/Reporter.c	2012-05-03 13:08:19.941254490 +0000
+@@ -154,6 +154,8 @@
+                 }
+                 data->mHost = agent->mHost;
+                 data->mLocalhost = agent->mLocalhost;
++                data->mSource = agent->mSource;
++                data->mInterface = agent->mInterface;
+                 data->mBufLen = agent->mBufLen;
+                 data->mMSS = agent->mMSS;
+                 data->mTCPWin = agent->mTCPWin;
+@@ -173,6 +175,7 @@
+                     data->connection.local = agent->local;
+                     data->connection.size_local = agent->size_local;
+                     SockAddr_setPortAny( &data->connection.local );
++		    data->connection.source = agent->source;
+                 }
+             }
+         } else {
+@@ -235,6 +238,8 @@
+             }
+             data->mHost = agent->mHost;
+             data->mLocalhost = agent->mLocalhost;
++            data->mSource = agent->mSource;
++	    data->mInterface = agent->mInterface;
+             data->mBufLen = agent->mBufLen;
+             data->mMSS = agent->mMSS;
+             data->mTCPWin = agent->mTCPWin;
+@@ -272,6 +277,7 @@
+             data->connection.size_peer = agent->size_peer;
+             data->connection.local = agent->local;
+             data->connection.size_local = agent->size_local;
++	    data->connection.source = agent->source;
+         } else {
+             FAIL(1, "Out of Memory!!\n", agent);
+         }
+@@ -438,6 +444,8 @@
+         
+             data->mHost = agent->mHost;
+             data->mLocalhost = agent->mLocalhost;
++            data->mSource = agent->mSource;
++	    data->mInterface = agent->mInterface;
+             data->mode = agent->mReportMode;
+             data->type = SETTINGS_REPORT;
+             data->mBufLen = agent->mBufLen;
+@@ -452,7 +460,8 @@
+             data->connection.size_peer = agent->size_peer;
+             data->connection.local = agent->local;
+             data->connection.size_local = agent->size_local;
+-    
++    	    data->connection.source = agent->source;
++
+     #ifdef HAVE_THREAD
+             /*
+              * Update the ReportRoot to include this report.
+@@ -514,6 +523,7 @@
+             reporthdr->report.connection.size_peer = agent->size_local;
+             reporthdr->report.connection.local = agent->peer;
+             reporthdr->report.connection.size_local = agent->size_peer;
++	    reporthdr->report.connection.source = agent->source;
+             
+ #ifdef HAVE_THREAD
+             /*
+@@ -896,7 +906,7 @@
+         } else if ( checkMSS_MTU( inMSS, 576 ) ) {
+             net = "minimum";
+             mtu = 576;
+-            printf( warn_no_pathmtu );
++            printf( "%s", warn_no_pathmtu );
+         } else {
+             mtu = inMSS + 40;
+             net = "unknown interface";
+diff -Naur iperf-2.0.5/src/Server.cpp iperf-2.0.5-ssm/src/Server.cpp
+--- iperf-2.0.5/src/Server.cpp	2010-04-03 01:24:40.000000000 +0000
++++ iperf-2.0.5-ssm/src/Server.cpp	2012-05-03 13:37:49.872999355 +0000
+@@ -217,7 +217,8 @@
+         }
+ 
+         // write data 
+-        write( mSettings->mSock, mBuf, mSettings->mBufLen ); 
++        rc=write( mSettings->mSock, mBuf, mSettings->mBufLen );
++	WARN_errno( rc < 0, "write");
+ 
+         // wait until the socket is readable, or our timeout expires 
+         FD_SET( mSettings->mSock, &readSet ); 
+diff -Naur iperf-2.0.5/src/Settings.cpp iperf-2.0.5-ssm/src/Settings.cpp
+--- iperf-2.0.5/src/Settings.cpp	2010-07-09 02:05:46.000000000 +0100
++++ iperf-2.0.5-ssm/src/Settings.cpp	2012-05-03 14:09:09.062317750 +0000
+@@ -106,6 +106,8 @@
+ 
+ // more esoteric options
+ {"bind",       required_argument, NULL, 'B'},
++{"source",     required_argument, NULL, 'O'}, // Originating source specific multicast address
++{"interface",     required_argument, NULL, 'X'}, // Source specific multicast interface
+ {"compatibility",    no_argument, NULL, 'C'},
+ {"daemon",           no_argument, NULL, 'D'},
+ {"file_input", required_argument, NULL, 'F'},
+@@ -150,6 +152,8 @@
+ 
+ // more esoteric options
+ {"IPERF_BIND",       required_argument, NULL, 'B'},
++{"IPERF_SOURCE",     required_argument, NULL, 'O'}, // Originating source specific multicast address
++{"IPERF_INTERFACE",     required_argument, NULL, 'X'}, // source specific multicast interface
+ {"IPERF_COMPAT",           no_argument, NULL, 'C'},
+ {"IPERF_DAEMON",           no_argument, NULL, 'D'},
+ {"IPERF_FILE_INPUT", required_argument, NULL, 'F'},
+@@ -169,7 +173,7 @@
+ 
+ #define SHORT_OPTIONS()
+ 
+-const char short_options[] = "1b:c:df:hi:l:mn:o:p:rst:uvw:x:y:B:CDF:IL:M:NP:RS:T:UVWZ:";
++const char short_options[] = "1b:c:df:hi:l:mn:o:p:rst:uvw:x:y:B:O:X:CDF:IL:M:NP:RS:T:UVWZ:";
+ 
+ /* -------------------------------------------------------------------
+  * defaults
+@@ -375,8 +379,8 @@
+             break;
+ 
+         case 'h': // print help and exit
+-            fprintf(stderr, usage_long1);
+-            fprintf(stderr, usage_long2);
++            fprintf(stderr, "%s", usage_long1);
++            fprintf(stderr, "%s", usage_long2);
+             exit(1);
+             break;
+ 
+@@ -482,7 +486,7 @@
+             break;
+ 
+         case 'v': // print version and exit
+-            fprintf( stderr, version );
++            fprintf( stderr, "%s", version );
+             exit(1);
+             break;
+ 
+@@ -550,6 +554,19 @@
+             }
+             break;
+ 
++        case 'O': // source specific multicast address
++            mExtSettings->mSource = new char[ strlen( optarg ) + 1 ];
++	    strcpy( mExtSettings->mSource, optarg );
++	    SockAddr_setHostname(optarg , &mExtSettings->source, (isIPV6( mExtSettings ) ? 1 : 0 ));
++	    // setMulticast( mExtSettings ); // we're definitely going multicast but no need to hurry
++	    setSourceMulticast( mExtSettings );
++	    break;
++	    
++        case 'X': // source specific multicast interface option
++            mExtSettings->mInterface = new char[ strlen( optarg ) + 1 ];
++	    strcpy( mExtSettings->mInterface, optarg );
++	    break;
++
+         case 'C': // Run in Compatibility Mode
+             setCompat( mExtSettings );
+             if ( mExtSettings->mMode != kTest_Normal ) {
