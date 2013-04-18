@@ -16,4 +16,13 @@ The Board of Trustees of the University of Illinois
 All rights reserved
 See UI License (doc/ui_license.html) for complete details.
 
-$Id: README,v 1.1.1.1 2004/05/18 01:50:44 kgibbs Exp $
+SSM IGMP feature
+----------------
+
+You can try this feature like this:
+
+. on a machine, run:
+iperf -s -u -B 224.0.67.67 -i 1 -O 192.168.0.1 -X eth0
+	
+. on the 192.168.0.1 machine, run:
+iperf -c 224.0.67.67 -u --ttl 5 -t 5
