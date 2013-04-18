@@ -111,6 +111,8 @@ typedef struct thread_Settings {
     char*  mFileName;               // -F
     char*  mHost;                   // -c
     char*  mLocalhost;              // -B
+    char*  mSource;                 // -O
+    char*  mInterface;              // -X
     char*  mOutputFileName;         // -o
     FILE*  Extractor_file;
     ReportHeader*  reporthdr;
@@ -168,7 +170,8 @@ typedef struct thread_Settings {
     iperf_sockaddr peer;
     Socklen_t size_peer;
     iperf_sockaddr local;
-    Socklen_t size_local;
+    Socklen_t size_local;    
+    iperf_sockaddr source; // source specific multicast address
     nthread_t mTID;
     char* mCongestion;
 #if defined( HAVE_WIN32_THREAD )
@@ -210,6 +213,7 @@ typedef struct thread_Settings {
 #define FLAG_SINGLECLIENT   0x00100000
 #define FLAG_SINGLEUDP      0x00200000
 #define FLAG_CONGESTION     0x00400000
+#define FLAG_SOURCE_MCAST   0x00800000
 
 #define isBuflenSet(settings)      ((settings->flags & FLAG_BUFLENSET) != 0)
 #define isCompat(settings)         ((settings->flags & FLAG_COMPAT) != 0)
@@ -226,6 +230,7 @@ typedef struct thread_Settings {
 #define isModeTime(settings)       ((settings->flags & FLAG_MODETIME) != 0)
 #define isReport(settings)         ((settings->flags & FLAG_REPORTSETTINGS) != 0)
 #define isMulticast(settings)      ((settings->flags & FLAG_MULTICAST) != 0)
+#define isSourceMulticast(settings)      ((settings->flags & FLAG_SOURCE_MCAST) != 0)
 // Active Low for Reports
 #define isSettingsReport(settings) ((settings->flags & FLAG_NOSETTREPORT) == 0)
 #define isConnectionReport(settings)  ((settings->flags & FLAG_NOCONNREPORT) == 0)
@@ -252,6 +257,7 @@ typedef struct thread_Settings {
 #define setModeTime(settings)      settings->flags |= FLAG_MODETIME
 #define setReport(settings)        settings->flags |= FLAG_REPORTSETTINGS
 #define setMulticast(settings)     settings->flags |= FLAG_MULTICAST
+#define setSourceMulticast(settings)     settings->flags |= FLAG_SOURCE_MCAST
 #define setNoSettReport(settings)  settings->flags |= FLAG_NOSETTREPORT
 #define setNoConnReport(settings)  settings->flags |= FLAG_NOCONNREPORT
 #define setNoDataReport(settings)  settings->flags |= FLAG_NODATAREPORT
@@ -276,6 +282,7 @@ typedef struct thread_Settings {
 #define unsetModeTime(settings)    settings->flags &= ~FLAG_MODETIME
 #define unsetReport(settings)      settings->flags &= ~FLAG_REPORTSETTINGS
 #define unsetMulticast(settings)   settings->flags &= ~FLAG_MULTICAST
+#define unsetSourceMulticast(settings)   settings->flags &= ~FLAG_SOURCE_MCAST
 #define unsetNoSettReport(settings)   settings->flags &= ~FLAG_NOSETTREPORT
 #define unsetNoConnReport(settings)   settings->flags &= ~FLAG_NOCONNREPORT
 #define unsetNoDataReport(settings)   settings->flags &= ~FLAG_NODATAREPORT

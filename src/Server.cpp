@@ -217,7 +217,8 @@ void Server::write_UDP_AckFIN( ) {
         }
 
         // write data 
-        write( mSettings->mSock, mBuf, mSettings->mBufLen ); 
+        rc=write( mSettings->mSock, mBuf, mSettings->mBufLen );
+	WARN_errno( rc < 0, "write");
 
         // wait until the socket is readable, or our timeout expires 
         FD_SET( mSettings->mSock, &readSet ); 

@@ -113,11 +113,14 @@ typedef struct Connection_Info {
     Socklen_t size_peer;
     iperf_sockaddr local;
     Socklen_t size_local;
+    iperf_sockaddr source;
 } Connection_Info;
 
 typedef struct ReporterData {
     char*  mHost;                   // -c
     char*  mLocalhost;              // -B
+    char*  mSource;                 // -O
+    char*  mInterface;              // -X
     // int's
     int type;
     int cntError;

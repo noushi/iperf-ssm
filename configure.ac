@@ -178,6 +178,7 @@ dnl check for multicast
 if test "$ac_cv_multicast" != no; then
   AC_CHECK_TYPES(struct ip_mreq,,,[#include "compat/headers_slim.h"])
   AC_CHECK_DECLS(IP_ADD_MEMBERSHIP,,,[#include "compat/headers_slim.h"])
+  AC_CHECK_DECLS(MCAST_JOIN_SOURCE_GROUP,,,[#include "compat/headers_slim.h"])
   AC_MSG_CHECKING(for multicast support)
   ac_cv_multicast=no
   if test "$ac_cv_have_decl_IP_ADD_MEMBERSHIP" = yes; then

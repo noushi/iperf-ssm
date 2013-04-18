@@ -84,6 +84,10 @@ extern const char multicast_ttl[];
 
 extern const char join_multicast[];
 
+extern const char join_source_multicast[];
+
+extern const char join_interface_multicast[];
+
 extern const char client_datagram_size[];
 
 extern const char server_datagram_size[];

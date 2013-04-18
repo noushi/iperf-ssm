@@ -78,6 +78,8 @@ public:
 
     void McastJoin( );
 
+    void McastSource( );
+
     void McastSetTTL( int val );
 
     void Accept( thread_Settings *server );

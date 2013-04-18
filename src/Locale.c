@@ -93,7 +93,9 @@ Client/Server:\n\
 Server specific:\n\
   -s, --server             run in server mode\n\
   -U, --single_udp         run in single threaded UDP mode\n\
-  -D, --daemon             run the server as a daemon\n"
+  -D, --daemon             run the server as a daemon\n\
+  -O, --source    <address> specify source for Source Specific Multicast\n\
+  -X, --interface <interface> specify interface for Source Specific Multicast\n"
 #ifdef WIN32
 "  -R, --remove             remove service in win32\n"
 #endif
@@ -163,6 +165,12 @@ const char multicast_ttl[] =
 
 const char join_multicast[] =
 "Joining multicast group  %s\n";
+
+const char join_source_multicast[] =
+"Accepting multicast group source  %s\n";
+
+const char join_interface_multicast[] = 
+"Joining multicast group on interface  %s\n";
 
 const char client_datagram_size[] =
 "Sending %d byte datagrams\n";

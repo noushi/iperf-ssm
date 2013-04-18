@@ -152,6 +152,8 @@ SPECIAL_OSF1_EXTERN_C_STOP
         #include <pthread.h>
     #endif // HAVE_POSIX_THREAD
 
+    #include <net/if.h> //provides if_nametoindex() 
+
 /* used in Win32 for error checking,
  * rather than checking rc < 0 as unix usually does */
     #define SOCKET_ERROR   -1

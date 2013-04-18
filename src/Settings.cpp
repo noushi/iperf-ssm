@@ -106,6 +106,8 @@ const struct option long_options[] =
 
 // more esoteric options
 {"bind",       required_argument, NULL, 'B'},
+{"source",     required_argument, NULL, 'O'}, // Originating source specific multicast address
+{"interface",     required_argument, NULL, 'X'}, // Source specific multicast interface
 {"compatibility",    no_argument, NULL, 'C'},
 {"daemon",           no_argument, NULL, 'D'},
 {"file_input", required_argument, NULL, 'F'},
@@ -150,6 +152,8 @@ const struct option env_options[] =
 
 // more esoteric options
 {"IPERF_BIND",       required_argument, NULL, 'B'},
+{"IPERF_SOURCE",     required_argument, NULL, 'O'}, // Originating source specific multicast address
+{"IPERF_INTERFACE",     required_argument, NULL, 'X'}, // source specific multicast interface
 {"IPERF_COMPAT",           no_argument, NULL, 'C'},
 {"IPERF_DAEMON",           no_argument, NULL, 'D'},
 {"IPERF_FILE_INPUT", required_argument, NULL, 'F'},
@@ -169,7 +173,7 @@ const struct option env_options[] =
 
 #define SHORT_OPTIONS()
 
-const char short_options[] = "1b:c:df:hi:l:mn:o:p:rst:uvw:x:y:B:CDF:IL:M:NP:RS:T:UVWZ:";
+const char short_options[] = "1b:c:df:hi:l:mn:o:p:rst:uvw:x:y:B:O:X:CDF:IL:M:NP:RS:T:UVWZ:";
 
 /* -------------------------------------------------------------------
  * defaults
@@ -375,8 +379,8 @@ void Settings_Interpret( char option, const char *optarg, thread_Settings *mExtS
             break;
 
         case 'h': // print help and exit
-            fprintf(stderr, usage_long1);
-            fprintf(stderr, usage_long2);
+            fprintf(stderr, "%s", usage_long1);
+            fprintf(stderr, "%s", usage_long2);
             exit(1);
             break;
 
@@ -482,7 +486,7 @@ void Settings_Interpret( char option, const char *optarg, thread_Settings *mExtS
             break;
 
         case 'v': // print version and exit
-            fprintf( stderr, version );
+            fprintf( stderr, "%s", version );
             exit(1);
             break;
 
@@ -549,6 +553,19 @@ void Settings_Interpret( char option, const char *optarg, thread_Settings *mExtS
                 setMulticast( mExtSettings );
             }
             break;
+
+        case 'O': // source specific multicast address
+            mExtSettings->mSource = new char[ strlen( optarg ) + 1 ];
+	    strcpy( mExtSettings->mSource, optarg );
+	    SockAddr_setHostname(optarg , &mExtSettings->source, (isIPV6( mExtSettings ) ? 1 : 0 ));
+	    // setMulticast( mExtSettings ); // we're definitely going multicast but no need to hurry
+	    setSourceMulticast( mExtSettings );
+	    break;
+	    
+        case 'X': // source specific multicast interface option
+            mExtSettings->mInterface = new char[ strlen( optarg ) + 1 ];
+	    strcpy( mExtSettings->mInterface, optarg );
+	    break;
 
         case 'C': // Run in Compatibility Mode
             setCompat( mExtSettings );

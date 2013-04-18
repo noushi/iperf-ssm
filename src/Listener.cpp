@@ -80,6 +80,7 @@
 #include "List.h"
 #include "util.h" 
 
+
 /* ------------------------------------------------------------------- 
  * Stores local hostname and socket info. 
  * ------------------------------------------------------------------- */ 
@@ -345,7 +346,11 @@ void Listener::Listen( ) {
 #ifndef WIN32
     // if multicast, join the group
     if ( SockAddr_isMulticast( &mSettings->local ) ) {
+      if( isSourceMulticast( mSettings ) ) {
+	McastSource( );
+      } else {
         McastJoin( );
+      }
     }
 #endif
 } // end Listen
@@ -385,6 +390,62 @@ void Listener::McastJoin( ) {
 #endif
 }
 // end McastJoin
+
+/* -------------------------------------------------------------------
+ * Sets the source specific multicast address
+ * ------------------------------------------------------------------- */
+
+void Listener::McastSource( ) {
+#ifdef HAVE_MULTICAST
+    if ( !SockAddr_isIPv6( &mSettings->local ) ) {
+	struct group_source_req group_source_req;
+	struct sockaddr_in *group;
+	struct sockaddr_in *source;
+	char temp[100];
+	int iface;
+
+//	iface_str could be eth0, wlan0...
+	char *iface_str=mSettings->mInterface;
+
+	FAIL( iface_str == NULL, "source multicast join: interface setting", mSettings );
+
+	iface = if_nametoindex(iface_str);
+
+	group_source_req.gsr_interface = iface;
+
+//	fprintf(stderr, "setting multicast interface to %s , idx %d\n", iface_str, iface);
+
+	group=(struct sockaddr_in*)&group_source_req.gsr_group;
+	source=(struct sockaddr_in*)&group_source_req.gsr_source;
+	
+	SockAddr_getHostAddress(&mSettings->local, temp, 100);
+//	fprintf(stderr, "setting multicast group to %s\n", temp);
+	
+	group->sin_family = AF_INET;
+	inet_aton(temp,&group->sin_addr);
+	group->sin_port = 0;
+	
+	SockAddr_getHostAddress(&mSettings->source, temp, 100);
+//	fprintf(stderr, "setting multicast source to %s\n", temp);
+	
+	source->sin_family = AF_INET;
+	inet_aton(temp,&source->sin_addr);
+	source->sin_port = 0;
+	
+	int rc= setsockopt(mSettings->mSock ,SOL_IP,MCAST_JOIN_SOURCE_GROUP, &group_source_req,
+			   sizeof(group_source_req));
+	
+	FAIL_errno( rc == SOCKET_ERROR, "source multicast join", mSettings );	
+    }
+#ifdef HAVE_IPV6_MULTICAST
+      else {
+	
+        FAIL( 0 == 0, "source multicast join not yet implemented for IPv6", mSettings );
+    }
+#endif
+#endif
+}
+// end McastSource
 
 /* -------------------------------------------------------------------
  * Sets the Multicast TTL for outgoing packets.
@@ -702,7 +763,9 @@ void Listener::runAsDaemon(const char *pname, int facility) {
         exit(0); 
     }
 
-    chdir("."); 
+    int rc=chdir("."); 
+    WARN_errno( rc < 0, "chdir");
+
     fprintf( stderr, "Running Iperf Server as a daemon\n"); 
     fprintf( stderr, "The Iperf daemon process ID : %d\n",((int)getpid())); 
     fflush(stderr); 

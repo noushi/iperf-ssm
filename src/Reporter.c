@@ -154,6 +154,8 @@ MultiHeader* InitMulti( thread_Settings *agent, int inID ) {
                 }
                 data->mHost = agent->mHost;
                 data->mLocalhost = agent->mLocalhost;
+                data->mSource = agent->mSource;
+                data->mInterface = agent->mInterface;
                 data->mBufLen = agent->mBufLen;
                 data->mMSS = agent->mMSS;
                 data->mTCPWin = agent->mTCPWin;
@@ -173,6 +175,7 @@ MultiHeader* InitMulti( thread_Settings *agent, int inID ) {
                     data->connection.local = agent->local;
                     data->connection.size_local = agent->size_local;
                     SockAddr_setPortAny( &data->connection.local );
+		    data->connection.source = agent->source;
                 }
             }
         } else {
@@ -235,6 +238,8 @@ ReportHeader* InitReport( thread_Settings *agent ) {
             }
             data->mHost = agent->mHost;
             data->mLocalhost = agent->mLocalhost;
+            data->mSource = agent->mSource;
+	    data->mInterface = agent->mInterface;
             data->mBufLen = agent->mBufLen;
             data->mMSS = agent->mMSS;
             data->mTCPWin = agent->mTCPWin;
@@ -272,6 +277,7 @@ ReportHeader* InitReport( thread_Settings *agent ) {
             data->connection.size_peer = agent->size_peer;
             data->connection.local = agent->local;
             data->connection.size_local = agent->size_local;
+	    data->connection.source = agent->source;
         } else {
             FAIL(1, "Out of Memory!!\n", agent);
         }
@@ -438,6 +444,8 @@ void ReportSettings( thread_Settings *agent ) {
         
             data->mHost = agent->mHost;
             data->mLocalhost = agent->mLocalhost;
+            data->mSource = agent->mSource;
+	    data->mInterface = agent->mInterface;
             data->mode = agent->mReportMode;
             data->type = SETTINGS_REPORT;
             data->mBufLen = agent->mBufLen;
@@ -452,7 +460,8 @@ void ReportSettings( thread_Settings *agent ) {
             data->connection.size_peer = agent->size_peer;
             data->connection.local = agent->local;
             data->connection.size_local = agent->size_local;
-    
+    	    data->connection.source = agent->source;
+
     #ifdef HAVE_THREAD
             /*
              * Update the ReportRoot to include this report.
@@ -514,6 +523,7 @@ void ReportServerUDP( thread_Settings *agent, server_hdr *server ) {
             reporthdr->report.connection.size_peer = agent->size_local;
             reporthdr->report.connection.local = agent->peer;
             reporthdr->report.connection.size_local = agent->size_peer;
+	    reporthdr->report.connection.source = agent->source;
             
 #ifdef HAVE_THREAD
             /*
@@ -896,7 +906,7 @@ void PrintMSS( ReporterData *stats ) {
         } else if ( checkMSS_MTU( inMSS, 576 ) ) {
             net = "minimum";
             mtu = 576;
-            printf( warn_no_pathmtu );
+            printf( "%s", warn_no_pathmtu );
         } else {
             mtu = inMSS + 40;
             net = "unknown interface";

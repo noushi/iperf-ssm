@@ -1,3 +1,11 @@
+2012-05-03 Reda Noushi <reda_noushi@yahoo.com>
+
+* added Source Specific Multicast iperf support for IPV4:
+ . -O -X server options
+ . reporting
+ . configure.ac check
+* cleaned up all compiler warnings (unchecked return values for write, chdir)
+
 2010-07-08 Jon Dugan <jdugan@x1024.net>
 
 * bumped default TCP send/recv buffer to 128K (this is not the kernel buffer
