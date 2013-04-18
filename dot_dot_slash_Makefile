@@ -1,0 +1,49 @@
+# I used this makefile during the development of the SSM patch.
+# It should be placed on on top of the root directory of iperf-ssm,
+#  but not everything is guaranteed to work.
+# It also includes a test target to check that the SSM feature is
+#  working fine. Just make sure to change the IFACE and ADDR to suit
+#  your specific network.
+
+IFACE=eth0
+ADDR=192.168.0.1
+
+ORIG=iperf-2.0.5
+NEW=iperf-2.0.5-ssm
+
+all: distclean diff 
+
+diff: 
+	@diff -Naur $(ORIG) $(NEW) >mydiff || true
+
+distclean:
+	for i in  $(ORIG) $(NEW) ; do \
+	   cd $$i ; \
+	   make distclean ; \
+	   cd - ; \
+	done || true
+
+full-cycle: full-clean full-compile
+
+
+fco full-compile:
+	cd $(NEW) ; autoreconf ; ./configure ; make
+	cd $(ORIG) ; autoreconf ; ./configure ; make
+
+fcl full-clean:
+	for i in  $(ORIG) $(NEW) ; do \
+	   cd $$i ; \
+	   ./configure && make maintainer-clean \
+	   rm -f configure config.h.in ;\
+	   cd - ; \
+	done || true
+
+
+test:
+	cd $(NEW) ; iperf -s -u -B 224.0.67.67 -i 1 -O $(ADDR) -X $(IFACE) &
+	sleep 2 ; $(NEW)/src/iperf -c 224.0.67.67 -u --ttl 5 -t 5 ; sleep 2 ; killall iperf
+
+
+test-patch:
+	cd _expendable ; rm -Rf $(ORIG) ; tar zxvf ../$(ORIG).tar.gz 
+	cd _expendable/$(ORIG) ; patch -p1 <../../mydiff
