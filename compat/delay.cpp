@@ -63,8 +63,8 @@ void delay_loop(unsigned long usec)
 {
     struct timespec requested, remaining;
 
-    requested.tv_sec  = 0;
-    requested.tv_nsec = usec * 1000L;
+    requested.tv_sec  = usec / 1000000L;
+    requested.tv_nsec = (usec % 1000000L) * 1000L;
 
     while (nanosleep(&requested, &remaining) == -1)
         if (errno == EINTR)
