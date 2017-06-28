@@ -333,8 +333,10 @@ void Listener::Listen( ) {
     } else
 #endif
     {
+        char temp[100] = "lbind:";
+        SockAddr_getHostAddress(&mSettings->local, &temp[6], 94);
         rc = bind( mSettings->mSock, (sockaddr*) &mSettings->local, mSettings->size_local );
-        WARN_errno( rc == SOCKET_ERROR, "bind" );
+        WARN_errno( rc == SOCKET_ERROR, temp );
     }
     // listen for connections (TCP only).
     // default backlog traditionally 5
@@ -475,12 +477,14 @@ void Listener::McastSource( ) {
 void Listener::McastSetTTL( int val ) {
 #ifdef HAVE_MULTICAST
     if ( !SockAddr_isIPv6( &mSettings->local ) ) {
+        fprintf(stdout, "setting ip4 listener ttl to %d\n", val);
         int rc = setsockopt( mSettings->mSock, IPPROTO_IP, IP_MULTICAST_TTL,
                              (char*) &val, sizeof(val));
         WARN_errno( rc == SOCKET_ERROR, "multicast ttl" );
     }
 #ifdef HAVE_IPV6_MULTICAST
       else {
+        fprintf(stdout, "setting ip6 listener hops to %d\n", val);
         int rc = setsockopt( mSettings->mSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
                              (char*) &val, sizeof(val));
         WARN_errno( rc == SOCKET_ERROR, "multicast ttl" );

@@ -406,9 +406,11 @@ void Client::Connect( ) {
     SockAddr_localAddr( mSettings );
     if ( mSettings->mLocalhost != NULL ) {
         // bind socket to local address
+        char temp[100] = "cbind:";
+        SockAddr_getHostAddress(&mSettings->local, &temp[6], 94);
         rc = bind( mSettings->mSock, (sockaddr*) &mSettings->local, 
                    SockAddr_get_sizeof_sockaddr( &mSettings->local ) );
-        WARN_errno( rc == SOCKET_ERROR, "bind" );
+        WARN_errno( rc == SOCKET_ERROR, temp );
     }
 
     // connect socket
