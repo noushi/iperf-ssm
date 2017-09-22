@@ -333,8 +333,10 @@ void Listener::Listen( ) {
     } else
 #endif
     {
+        char temp[100] = "lbind:";
+        SockAddr_getHostAddress(&mSettings->local, &temp[6], 94);
         rc = bind( mSettings->mSock, (sockaddr*) &mSettings->local, mSettings->size_local );
-        WARN_errno( rc == SOCKET_ERROR, "bind" );
+        WARN_errno( rc == SOCKET_ERROR, temp );
     }
     // listen for connections (TCP only).
     // default backlog traditionally 5
@@ -397,10 +399,7 @@ void Listener::McastJoin( ) {
 
 void Listener::McastSource( ) {
 #ifdef HAVE_MULTICAST
-    if ( !SockAddr_isIPv6( &mSettings->local ) ) {
 	struct group_source_req group_source_req;
-	struct sockaddr_in *group;
-	struct sockaddr_in *source;
 	char temp[100];
 	int iface;
 
@@ -415,32 +414,56 @@ void Listener::McastSource( ) {
 
 //	fprintf(stderr, "setting multicast interface to %s , idx %d\n", iface_str, iface);
 
+    if ( !SockAddr_isIPv6( &mSettings->local ) ) {
+	struct sockaddr_in *group;
+	struct sockaddr_in *source;
 	group=(struct sockaddr_in*)&group_source_req.gsr_group;
 	source=(struct sockaddr_in*)&group_source_req.gsr_source;
-	
+
 	SockAddr_getHostAddress(&mSettings->local, temp, 100);
 //	fprintf(stderr, "setting multicast group to %s\n", temp);
-	
+
 	group->sin_family = AF_INET;
-	inet_aton(temp,&group->sin_addr);
+	inet_pton(AF_INET, temp, &group->sin_addr);
 	group->sin_port = 0;
-	
+
 	SockAddr_getHostAddress(&mSettings->source, temp, 100);
 //	fprintf(stderr, "setting multicast source to %s\n", temp);
-	
+
 	source->sin_family = AF_INET;
-	inet_aton(temp,&source->sin_addr);
+	inet_pton(AF_INET, temp, &source->sin_addr);
 	source->sin_port = 0;
-	
-	int rc= setsockopt(mSettings->mSock ,SOL_IP,MCAST_JOIN_SOURCE_GROUP, &group_source_req,
+
+	int rc= setsockopt(mSettings->mSock, IPPROTO_IP, MCAST_JOIN_SOURCE_GROUP, &group_source_req,
 			   sizeof(group_source_req));
-	
-	FAIL_errno( rc == SOCKET_ERROR, "source multicast join", mSettings );	
+
+	FAIL_errno( rc == SOCKET_ERROR, "source multicast join", mSettings );
     }
 #ifdef HAVE_IPV6_MULTICAST
       else {
+	struct sockaddr_in6 *group;
+	struct sockaddr_in6 *source;
+	group=(struct sockaddr_in6*)&group_source_req.gsr_group;
+	source=(struct sockaddr_in6*)&group_source_req.gsr_source;
+
+	SockAddr_getHostAddress(&mSettings->local, temp, 100);
+//	fprintf(stderr, "setting multicast group to %s\n", temp);
+
+	group->sin6_family = AF_INET6;
+	inet_pton(AF_INET6, temp, &group->sin6_addr);
+	group->sin6_port = 0;
+
+	SockAddr_getHostAddress(&mSettings->source, temp, 100);
+//	fprintf(stderr, "setting multicast source to %s\n", temp);
+
+	source->sin6_family = AF_INET6;
+	inet_pton(AF_INET6, temp, &source->sin6_addr);
+	source->sin6_port = 0;
+
+	int rc= setsockopt(mSettings->mSock, IPPROTO_IPV6, MCAST_JOIN_SOURCE_GROUP, &group_source_req,
+			   sizeof(group_source_req));
 	
-        FAIL( 0 == 0, "source multicast join not yet implemented for IPv6", mSettings );
+	FAIL_errno( rc == SOCKET_ERROR, "IPv6 source multicast join", mSettings );
     }
 #endif
 #endif
@@ -454,12 +477,14 @@ void Listener::McastSource( ) {
 void Listener::McastSetTTL( int val ) {
 #ifdef HAVE_MULTICAST
     if ( !SockAddr_isIPv6( &mSettings->local ) ) {
+        fprintf(stdout, "setting ip4 listener ttl to %d\n", val);
         int rc = setsockopt( mSettings->mSock, IPPROTO_IP, IP_MULTICAST_TTL,
                              (char*) &val, sizeof(val));
         WARN_errno( rc == SOCKET_ERROR, "multicast ttl" );
     }
 #ifdef HAVE_IPV6_MULTICAST
       else {
+        fprintf(stdout, "setting ip6 listener hops to %d\n", val);
         int rc = setsockopt( mSettings->mSock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
                              (char*) &val, sizeof(val));
         WARN_errno( rc == SOCKET_ERROR, "multicast ttl" );
